@@ -23,7 +23,10 @@ Statuts : À faire, En cours, En recette, Bloqué, Terminé, Non concerné (briq
 
 ## Données
 
-- **Importer** : bouton *Importer* ou glisser-déposer un `.json` sur la page.
+- **Au chargement**, la page affiche une zone de dépôt : glisser-déposer (ou sélectionner) le `.json`
+  du projet. Liens secondaires : reprendre le brouillon local, créer un projet vide, voir un exemple.
+- **Importer** : bouton *Importer* ou glisser-déposer un `.json` sur la page ; *⋯ → Fermer le projet*
+  revient à l'écran d'accueil.
 - **Exporter** : bouton *Exporter*, télécharge `<nom-du-projet>-<date>.json`.
 - Un brouillon est gardé dans le `localStorage` du navigateur pour ne rien perdre en cas de
   rechargement ; le badge *non exporté* rappelle que le JSON n'est pas à jour.

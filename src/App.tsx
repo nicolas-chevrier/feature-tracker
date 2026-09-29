@@ -7,6 +7,7 @@ import FeaturePanel from "./FeaturePanel";
 import GanttView, { type WorkChange } from "./GanttView";
 import MatrixView from "./MatrixView";
 import SettingsDialog from "./SettingsDialog";
+import Welcome from "./Welcome";
 import {
   applyWorkPatch,
   createFeature,
@@ -68,19 +69,92 @@ function loadDraft(): ProjectData | null {
   }
 }
 
+function initialTheme(): Theme {
+  return (
+    (storage.get(THEME_KEY) as Theme) ||
+    (window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light")
+  );
+}
+
+interface Session {
+  id: number;
+  data: ProjectData;
+  message?: string;
+}
+
+/** Écran d'accueil (dépôt du JSON) tant qu'aucun projet n'est ouvert, puis espace de travail. */
 export default function App() {
-  const [data, setData] = useState<ProjectData>(() => loadDraft() ?? sampleProject());
+  const [session, setSession] = useState<Session | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loadingSrc, setLoadingSrc] = useState(
+    () => !!new URLSearchParams(window.location.search).get("src"),
+  );
+
+  const open = useCallback((data: ProjectData, message?: string) => {
+    setError(null);
+    setSession({ id: Date.now(), data, message });
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = initialTheme();
+  }, [session]);
+
+  // ?src=<url> : charge un JSON distant (ex. fichier brut d'un dépôt GitHub).
+  useEffect(() => {
+    const src = new URLSearchParams(window.location.search).get("src");
+    if (!src) return;
+    fetch(src)
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.text();
+      })
+      .then((text) => open(parseProjectJson(text), `Projet chargé depuis ${src}`))
+      .catch((e) => setError(`Chargement de ${src} impossible : ${e.message}`))
+      .finally(() => setLoadingSrc(false));
+  }, [open]);
+
+  if (session)
+    return (
+      <Workspace
+        key={session.id}
+        initialData={session.data}
+        initialMessage={session.message}
+        onClose={() => setSession(null)}
+      />
+    );
+
+  return (
+    <Welcome
+      loading={loadingSrc}
+      error={error}
+      onError={setError}
+      draft={loadDraft()}
+      onOpen={open}
+      onNew={() => open(createProject(), "Nouveau projet vide")}
+      onSample={() => open(sampleProject(), "Projet d'exemple chargé")}
+    />
+  );
+}
+
+function Workspace({
+  initialData,
+  initialMessage,
+  onClose,
+}: {
+  initialData: ProjectData;
+  initialMessage?: string;
+  onClose: () => void;
+}) {
+  const [data, setData] = useState<ProjectData>(initialData);
   const [revision, setRevision] = useState(0);
   const [dirty, setDirty] = useState(false);
   const [view, setView] = useState<View>(() => (storage.get(VIEW_KEY) as View) || "matrix");
-  const [theme, setTheme] = useState<Theme>(
-    () =>
-      (storage.get(THEME_KEY) as Theme) ||
-      (window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light"),
-  );
+  const [theme, setTheme] = useState<Theme>(initialTheme);
   const [openFeatureId, setOpenFeatureId] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [toast, setToast] = useState<{ text: string; error?: boolean } | null>(null);
+  const [toast, setToast] = useState<{ text: string; error?: boolean } | null>(
+    initialMessage ? { text: initialMessage } : null,
+  );
   const [dragging, setDragging] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
 
@@ -120,19 +194,6 @@ export default function App() {
     setOpenFeatureId(null);
     setToast({ text: message });
   }, []);
-
-  // ?src=<url> : charge un JSON distant (ex. fichier brut d'un dépôt GitHub).
-  useEffect(() => {
-    const src = new URLSearchParams(window.location.search).get("src");
-    if (!src) return;
-    fetch(src)
-      .then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.text();
-      })
-      .then((text) => replaceData(parseProjectJson(text), `Projet chargé depuis ${src}`))
-      .catch((e) => setToast({ text: `Chargement de ${src} impossible : ${e.message}`, error: true }));
-  }, [replaceData]);
 
   const confirmDiscard = () =>
     !dirty || confirm("Des modifications n'ont pas été exportées. Continuer quand même ?");
@@ -292,6 +353,7 @@ export default function App() {
                 </summary>
                 <div className="ft-menu-list" onClick={(e) => (e.currentTarget.parentElement as HTMLDetailsElement).removeAttribute("open")}>
                   <button onClick={() => setSettingsOpen(true)}>Paramètres du projet…</button>
+                  <button onClick={() => confirmDiscard() && onClose()}>Fermer le projet</button>
                   <button
                     onClick={() => confirmDiscard() && replaceData(createProject(), "Nouveau projet vide")}
                   >
