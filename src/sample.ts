@@ -29,9 +29,9 @@ export function sampleProject(today = new Date()): ProjectData {
     version: 1,
     project: { name: "Plateforme Client", description: "Refonte de l'espace client" },
     bricks: [
-      { id: "mapi", name: "MAPI", color: "#4f7cff", description: "MAPI VueJS + API" },
-      { id: "api", name: "MAPB", color: "#22a06b", description: "MAPB Rbin Rbex" },
-      { id: "data", name: "Statistiques", color: "#e8912d", description: "Statistiques" },
+      { id: "mapi", name: "sfd", color: "#4f7cff", description: "sfd VueJS + API" },
+      { id: "api", name: "Real", color: "#22a06b", description: "Real Rbin Rbex" },
+      { id: "data", name: "IA", color: "#e8912d", description: "IA" },
     ],
     features: [
       {

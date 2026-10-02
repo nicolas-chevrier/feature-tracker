@@ -41,7 +41,7 @@ Statuts : À faire, En cours, En recette, Bloqué, Terminé, Non concerné (briq
   "version": 1,
   "project": { "name": "Plateforme Client", "description": "Refonte de l'espace client" },
   "bricks": [
-    { "id": "mapi", "name": "MAPI", "color": "#4f7cff" },
+    { "id": "mapi", "name": "sfd", "color": "#4f7cff" },
     { "id": "api", "name": "API métier", "color": "#22a06b" },
     { "id": "data", "name": "Référentiel", "color": "#e8912d" }
   ],
