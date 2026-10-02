@@ -185,6 +185,7 @@ export default function GanttView({ data, revision, onChange, onOpenFeature }: P
     [revision],
   );
   const todayKey = formatDate(new Date());
+  const markers = useMemo(() => [{ start: parseDate(todayKey)!, css: "ft-today-marker" }], [todayKey]);
   const highlightTime = (date: Date, unit: string) => {
     if (unit !== "day" || scaleMode !== "day") return "";
     if (formatDate(date) === todayKey) return "ft-today";
@@ -291,6 +292,7 @@ export default function GanttView({ data, revision, onChange, onOpenFeature }: P
           columns={columns}
           scales={scale.scales}
           highlightTime={highlightTime}
+          markers={markers}
           lengthUnit={scale.lengthUnit}
           cellWidth={scale.cellWidth}
           cellHeight={34}

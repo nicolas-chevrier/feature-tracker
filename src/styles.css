@@ -845,7 +845,18 @@ tr:hover .ft-move,
 
 .ft-gantt .ft-today {
   background-color: color-mix(in srgb, #e5484d 14%, transparent);
-  box-shadow: inset 2px 0 0 #e5484d;
+}
+
+/* Ligne verticale en pointillé sur la date du jour, quelle que soit l'échelle. */
+.ft-gantt .wx-marker.ft-today-marker {
+  width: 0;
+  background: none;
+  border-left: 2px dashed #e5484d;
+  pointer-events: none;
+}
+
+.ft-gantt .wx-marker.ft-today-marker .wx-content {
+  display: none;
 }
 
 /* ---------- Dialogues ---------- */
