@@ -4,9 +4,12 @@ import {
   addDays,
   featureProgress,
   formatDate,
+  orderedBricks,
   parseDate,
   statusOf,
+  type Brick,
   type BrickWork,
+  type Feature,
   type ProjectData,
 } from "./model";
 
@@ -22,10 +25,14 @@ interface Props {
   revision: number;
   onChange: (changes: WorkChange[]) => void;
   onOpenFeature: (featureId: string) => void;
+  /** Réordonnancements faits depuis le planning (le Gantt est déjà à jour, pas de reconstruction). */
+  onMoveFeature: (featureId: string, delta: -1 | 1) => void;
+  onMoveBrick: (featureId: string, brickId: string, delta: -1 | 1) => void;
 }
 
 const SEP = "::";
 const childId = (featureId: string, brickId: string) => `${featureId}${SEP}${brickId}`;
+const inPlanning = (f: Feature) => (b: Brick) => !!f.work[b.id] && f.work[b.id].status !== "na";
 const DAY = 86_400_000;
 const SCALE_KEY = "feature-tracker:scale";
 
@@ -105,9 +112,10 @@ function buildTasks(data: ProjectData): ITask[] {
   const tasks: ITask[] = [];
   data.features.forEach((f) => {
     const children: ITask[] = [];
-    data.bricks.forEach((b, i) => {
+    orderedBricks(data, f).forEach((b) => {
       const w = f.work[b.id];
       if (!w || w.status === "na") return;
+      const i = data.bricks.indexOf(b); // l'index global porte la couleur de la brique
       const start = parseDate(w.start);
       const end = parseDate(w.end);
       const scheduled = !!start && !!end;
@@ -156,12 +164,23 @@ function brickCss(data: ProjectData): string {
     .join("\n");
 }
 
-export default function GanttView({ data, revision, onChange, onOpenFeature }: Props) {
+export default function GanttView({
+  data,
+  revision,
+  onChange,
+  onOpenFeature,
+  onMoveFeature,
+  onMoveBrick,
+}: Props) {
   const apiRef = useRef<IApi | null>(null);
   const dataRef = useRef(data);
   dataRef.current = data;
   const handlers = useRef({ onChange, onOpenFeature });
   handlers.current = { onChange, onOpenFeature };
+  const allowMove = useRef(false);
+  const [selected, setSelected] = useState<string | null>(null);
+  const selectedRef = useRef(selected);
+  selectedRef.current = selected;
   const [scaleMode, setScaleMode] = useState<ScaleMode>(loadScaleMode);
   const scale = SCALE_MODES[scaleMode];
   useEffect(() => {
@@ -184,6 +203,12 @@ export default function GanttView({ data, revision, onChange, onOpenFeature }: P
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [revision],
   );
+  // Conserve la ligne sélectionnée quand le Gantt est reconstruit.
+  const initialSelection = useMemo(
+    () => (selectedRef.current ? [selectedRef.current] : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [revision, scaleMode],
+  );
   const todayKey = formatDate(new Date());
   const markers = useMemo(() => [{ start: parseDate(todayKey)!, css: "ft-today-marker" }], [todayKey]);
   const highlightTime = (date: Date, unit: string) => {
@@ -196,8 +221,11 @@ export default function GanttView({ data, revision, onChange, onOpenFeature }: P
     apiRef.current = api;
     setTimeout(() => api.exec("scroll-chart", { date: addDays(new Date(), -7) }), 0);
     // Structure (features/briques) pilotée par l'application, pas par le Gantt.
-    for (const action of ["add-task", "delete-task", "move-task", "copy-task", "indent-task", "add-link"])
+    for (const action of ["add-task", "delete-task", "copy-task", "indent-task", "add-link"])
       api.intercept(action, () => false);
+    // Le réordonnancement passe uniquement par les boutons Monter / Descendre.
+    api.intercept("move-task", () => allowMove.current);
+    api.on("select-task", (ev) => setSelected(ev.id == null ? null : String(ev.id)));
     api.intercept("drag-task", (ev) => api.getTask(ev.id)?.type !== "summary");
     api.intercept("show-editor", (ev) => {
       if (ev.id) handlers.current.onOpenFeature(String(ev.id).split(SEP)[0]);
@@ -233,6 +261,38 @@ export default function GanttView({ data, revision, onChange, onOpenFeature }: P
     if (changes.length) handlers.current.onChange(changes);
   }
 
+  /** Feature/brique sélectionnée et possibilité de la déplacer dans un sens. */
+  function moveTarget(delta: -1 | 1) {
+    if (!selected) return null;
+    const [featureId, brickId] = selected.split(SEP);
+    const fi = data.features.findIndex((f) => f.id === featureId);
+    if (fi < 0) return null;
+    if (brickId === undefined) {
+      const neighbor = data.features[fi + delta];
+      return neighbor ? { featureId, targetId: neighbor.id } : null;
+    }
+    const f = data.features[fi];
+    const visible = orderedBricks(data, f).filter(inPlanning(f));
+    const neighbor = visible[visible.findIndex((b) => b.id === brickId) + delta];
+    return neighbor ? { featureId, brickId, targetId: childId(f.id, neighbor.id) } : null;
+  }
+
+  function move(delta: -1 | 1) {
+    const target = moveTarget(delta);
+    const api = apiRef.current;
+    if (!target || !api || !selected) return;
+    allowMove.current = true;
+    try {
+      // Placement explicite par rapport à la ligne voisine de même niveau : les modes
+      // "up"/"down" de SVAR suivent les lignes affichées et peuvent imbriquer une feature dans une autre.
+      api.exec("move-task", { id: selected, target: target.targetId, mode: delta < 0 ? "before" : "after" });
+    } finally {
+      allowMove.current = false;
+    }
+    if (target.brickId === undefined) onMoveFeature(target.featureId, delta);
+    else onMoveBrick(target.featureId, target.brickId, delta);
+  }
+
   // Après une modification issue du Gantt, recalcule les lignes « feature » (dates et %).
   useEffect(() => {
     const api = apiRef.current;
@@ -265,6 +325,24 @@ export default function GanttView({ data, revision, onChange, onOpenFeature }: P
             {b.name}
           </span>
         ))}
+        <div className="ft-move-buttons" role="group" aria-label="Réordonner la ligne sélectionnée">
+          <button
+            className="ft-btn"
+            onClick={() => move(-1)}
+            disabled={!moveTarget(-1)}
+            title={selected ? "Monter la ligne sélectionnée (Alt+↑)" : "Sélectionnez une feature ou une brique"}
+          >
+            ▲ Monter
+          </button>
+          <button
+            className="ft-btn"
+            onClick={() => move(1)}
+            disabled={!moveTarget(1)}
+            title={selected ? "Descendre la ligne sélectionnée (Alt+↓)" : "Sélectionnez une feature ou une brique"}
+          >
+            ▼ Descendre
+          </button>
+        </div>
         <div className="ft-segmented" role="radiogroup" aria-label="Échelle du planning">
           {(Object.keys(SCALE_MODES) as ScaleMode[]).map((m) => (
             <button
@@ -283,11 +361,20 @@ export default function GanttView({ data, revision, onChange, onOpenFeature }: P
           l'avancement. Double-clic pour éditer la feature.
         </span>
       </div>
-      <div className="ft-gantt">
+      <div
+        className="ft-gantt"
+        onKeyDownCapture={(e) => {
+          if (!e.altKey || (e.key !== "ArrowUp" && e.key !== "ArrowDown")) return;
+          e.preventDefault();
+          e.stopPropagation();
+          move(e.key === "ArrowUp" ? -1 : 1);
+        }}
+      >
         <Gantt
           key={`${revision}-${scaleMode}`}
           init={init}
           tasks={tasks}
+          selected={initialSelection}
           taskTypes={taskTypes}
           columns={columns}
           scales={scale.scales}

@@ -5,7 +5,9 @@ import {
   exportFileName,
   featureProgress,
   featureStatus,
+  moveBrick,
   normalizeProject,
+  orderedBricks,
   parseProjectJson,
   serializeProject,
   type ProjectData,
@@ -109,6 +111,42 @@ describe("applyWorkPatch", () => {
   });
   it("rouvre une brique terminée si l'avancement baisse", () => {
     expect(applyWorkPatch({ status: "done", progress: 100 }, { progress: 80 }).status).toBe("in_progress");
+  });
+});
+
+describe("ordre des briques par feature", () => {
+  const data = normalizeProject({
+    ...base,
+    features: [
+      { id: "f", work: { a: { status: "todo" }, b: { status: "na" }, c: { status: "todo" } } },
+      { id: "g", brickOrder: ["c", "zzz", 42, "a"] },
+    ],
+  });
+  const [f, g] = data.features;
+  const ids = (feature: typeof f) => orderedBricks(data, feature).map((b) => b.id);
+
+  it("utilise l'ordre du projet par défaut", () => {
+    expect(f.brickOrder).toBeUndefined();
+    expect(ids(f)).toEqual(["a", "b", "c"]);
+  });
+
+  it("nettoie brickOrder à l'import et complète les briques manquantes", () => {
+    expect(g.brickOrder).toEqual(["c", "a"]);
+    expect(ids(g)).toEqual(["c", "a", "b"]);
+  });
+
+  it("saute les briques non affichées et s'arrête aux bords", () => {
+    const visible = (b: { id: string }) => f.work[b.id].status !== "na";
+    const moved = moveBrick(data, f, "c", -1, visible);
+    expect(ids(moved)).toEqual(["c", "b", "a"]);
+    expect(moveBrick(data, f, "a", -1, visible)).toBe(f);
+    expect(moveBrick(data, f, "c", 1, visible)).toBe(f);
+  });
+
+  it("ne modifie que la feature concernée", () => {
+    const moved = moveBrick(data, f, "a", 1);
+    expect(ids(moved)).toEqual(["b", "a", "c"]);
+    expect(ids(g)).toEqual(["c", "a", "b"]);
   });
 });
 

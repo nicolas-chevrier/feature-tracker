@@ -28,6 +28,8 @@ export interface Feature {
   description?: string;
   priority: PriorityId;
   milestone?: string;
+  /** Ordre d'affichage des briques dans le planning pour cette feature (ids). Absent = ordre du projet. */
+  brickOrder?: string[];
   work: Record<string, BrickWork>;
 }
 
@@ -85,6 +87,38 @@ export function createFeature(data: ProjectData, name = "Nouvelle feature"): Fea
   const work: Record<string, BrickWork> = {};
   for (const b of data.bricks) work[b.id] = emptyWork();
   return { id: uid("f"), name, priority: "medium", work };
+}
+
+// ---------- Ordre des briques par feature ----------
+
+/** Briques du projet dans l'ordre propre à la feature (ids inconnus ignorés, manquants ajoutés à la fin). */
+export function orderedBricks(data: ProjectData, f: Feature): Brick[] {
+  if (!f.brickOrder) return data.bricks;
+  const byId = new Map(data.bricks.map((b) => [b.id, b]));
+  const ordered = f.brickOrder.map((id) => byId.get(id)).filter((b): b is Brick => !!b);
+  return [...new Set([...ordered, ...data.bricks])];
+}
+
+/**
+ * Déplace une brique d'un cran dans l'ordre de la feature. Seules les briques pour
+ * lesquelles `visible` est vrai comptent comme voisines (les briques « non concernées »
+ * n'apparaissent pas dans le planning). Renvoie la feature inchangée si impossible.
+ */
+export function moveBrick(
+  data: ProjectData,
+  f: Feature,
+  brickId: string,
+  delta: -1 | 1,
+  visible: (b: Brick) => boolean = () => true,
+): Feature {
+  const order = orderedBricks(data, f).map((b) => b.id);
+  const from = order.indexOf(brickId);
+  if (from < 0) return f;
+  let to = from + delta;
+  while (to >= 0 && to < order.length && !visible(data.bricks.find((b) => b.id === order[to])!)) to += delta;
+  if (to < 0 || to >= order.length) return f;
+  [order[from], order[to]] = [order[to], order[from]];
+  return { ...f, brickOrder: order };
 }
 
 // ---------- Calculs d'avancement ----------
@@ -226,6 +260,9 @@ export function normalizeProject(raw: unknown): ProjectData {
       work,
       ...(str(f.description) ? { description: f.description as string } : {}),
       ...(str(f.milestone) ? { milestone: f.milestone as string } : {}),
+      ...(Array.isArray(f.brickOrder)
+        ? { brickOrder: f.brickOrder.filter((id): id is string => typeof id === "string" && seenBricks.has(id)) }
+        : {}),
     };
   });
 

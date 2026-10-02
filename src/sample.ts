@@ -30,8 +30,8 @@ export function sampleProject(today = new Date()): ProjectData {
     project: { name: "Plateforme Client", description: "Refonte de l'espace client" },
     bricks: [
       { id: "mapi", name: "sfd", color: "#4f7cff", description: "sfd VueJS + API" },
-      { id: "api", name: "Real", color: "#22a06b", description: "Real Rbin Rbex" },
-      { id: "data", name: "IA", color: "#e8912d", description: "IA" },
+      { id: "api", name: "Real", color: "#f97316", description: "Real Rbin Rbex" },
+      { id: "data", name: "IA", color: "#eab308", description: "IA" },
     ],
     features: [
       {

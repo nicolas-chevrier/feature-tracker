@@ -13,6 +13,7 @@ import {
   createFeature,
   createProject,
   exportFileName,
+  moveBrick,
   parseProjectJson,
   serializeProject,
   uid,
@@ -270,7 +271,7 @@ function Workspace({
     });
     setOpenFeatureId(copy.id);
   };
-  const moveFeature = (id: string, delta: -1 | 1) =>
+  const moveFeature = (id: string, delta: -1 | 1, fromGantt = false) =>
     update((d) => {
       const i = d.features.findIndex((f) => f.id === id);
       const j = i + delta;
@@ -278,7 +279,20 @@ function Workspace({
       const features = [...d.features];
       [features[i], features[j]] = [features[j], features[i]];
       return { ...d, features };
-    });
+    }, fromGantt);
+  // Seulement depuis le planning : seules les briques affichées comptent comme voisines.
+  const moveBrickInFeature = (featureId: string, brickId: string, delta: -1 | 1) =>
+    update(
+      (d) => ({
+        ...d,
+        features: d.features.map((f) =>
+          f.id === featureId
+            ? moveBrick(d, f, brickId, delta, (b) => !!f.work[b.id] && f.work[b.id].status !== "na")
+            : f,
+        ),
+      }),
+      true,
+    );
 
   const openFeature = data.features.find((f) => f.id === openFeatureId);
   const Theme = theme === "dark" ? WillowDark : Willow;
@@ -400,6 +414,8 @@ function Workspace({
                 revision={revision}
                 onChange={applyGanttChanges}
                 onOpenFeature={setOpenFeatureId}
+                onMoveFeature={(id, delta) => moveFeature(id, delta, true)}
+                onMoveBrick={moveBrickInFeature}
               />
             )}
           </main>

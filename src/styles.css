@@ -795,6 +795,17 @@ tr:hover .ft-move,
   margin-right: 6px;
 }
 
+.ft-move-buttons {
+  display: flex;
+  gap: 4px;
+  margin-left: 8px;
+}
+
+.ft-move-buttons .ft-btn {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
 .ft-segmented {
   display: flex;
   gap: 2px;

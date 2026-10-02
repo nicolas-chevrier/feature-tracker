@@ -64,6 +64,9 @@ Statuts : À faire, En cours, En recette, Bloqué, Terminé, Non concerné (briq
 
 - `status` : `todo` | `in_progress` | `review` | `blocked` | `done` | `na`
 - `priority` : `low` | `medium` | `high` | `critical`
+- `brickOrder` (optionnel) : ordre des briques de la feature dans le planning, ex. `["data", "mapi", "api"]`.
+  Absent = ordre des `bricks` du projet. Modifiable via *Planning → ▲ Monter / ▼ Descendre* (ou Alt+↑/↓)
+  sur la ligne sélectionnée ; le même bouton réordonne les features.
 - Dates au format `YYYY-MM-DD`, date de fin **incluse**. Sans dates, la brique est « non planifiée ».
 - L'import est tolérant : champs optionnels absents, briques manquantes complétées, valeurs
   invalides ramenées à une valeur par défaut. Il échoue si `bricks` est absent ou vide.
